@@ -1,0 +1,7 @@
+metall-form/node_modules
+metall-form/.next
+metall-form/out
+metall-form/dist
+metall-form/*.log
+metall-form/.env*
+metall-form/.DS_Store
