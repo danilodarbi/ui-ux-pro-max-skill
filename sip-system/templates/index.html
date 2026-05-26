@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIP Phone</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .app { width: 100%; max-width: 480px; padding: 24px; }
+  h1 { font-size: 1.4rem; color: #fff; margin-bottom: 6px; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-bottom: 24px; }
+  .badge.ok { background: #1a4731; color: #4ade80; }
+  .badge.no { background: #3b1010; color: #f87171; }
+  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 0.85rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+  input { width: 100%; background: #0f0f0f; border: 1px solid #333; border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 1rem; outline: none; }
+  input:focus { border-color: #4f8ef7; }
+  .btn { display: block; width: 100%; padding: 11px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; border: none; margin-top: 10px; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-green { background: #16a34a; color: #fff; }
+  .btn-red   { background: #dc2626; color: #fff; }
+  .calls { list-style: none; }
+  .calls li { background: #111; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; }
+  .status-tag { font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .calling  { background: #1c2f5e; color: #93c5fd; }
+  .ringing  { background: #2d2a10; color: #fde68a; }
+  .connected{ background: #1a4731; color: #4ade80; }
+  .ended    { background: #222; color: #666; }
+  .busy-declined { background: #3b1010; color: #f87171; }
+  .incoming { background: #2d1a4f; color: #c4b5fd; }
+  .logs { max-height: 220px; overflow-y: auto; font-size: 0.78rem; font-family: monospace; color: #6b7280; }
+  .logs p { padding: 2px 0; border-bottom: 1px solid #1a1a1a; }
+  .end-btn { background: #7f1d1d; color: #fca5a5; border: none; border-radius: 6px; padding: 3px 8px; font-size: 0.72rem; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SIP Phone</h1>
+  <span id="regBadge" class="badge no">Desconectado</span>
+
+  <div class="card">
+    <h2>Nova chamada</h2>
+    <input id="numInput" type="tel" placeholder="+5511999990000" />
+    <button class="btn btn-green" onclick="call()">Ligar</button>
+  </div>
+
+  <div class="card">
+    <h2>Chamadas ativas</h2>
+    <ul class="calls" id="callsList"><li style="color:#555;font-size:.85rem">Nenhuma chamada</li></ul>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div class="logs" id="logBox"></div>
+  </div>
+</div>
+
+<script>
+async function call() {
+  const num = document.getElementById('numInput').value.trim();
+  if (!num) return;
+  await fetch('/call', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({number: num}) });
+}
+
+async function hangup(sid) {
+  await fetch('/hangup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({session_id: sid}) });
+}
+
+function statusClass(s) {
+  const map = { calling:'calling', ringing:'ringing', connected:'connected', ended:'ended', incoming:'incoming' };
+  return map[s] || 'ended';
+}
+
+async function poll() {
+  const r = await fetch('/status');
+  const data = await r.json();
+
+  // badge
+  const badge = document.getElementById('regBadge');
+  badge.textContent = data.registered ? 'Registrado' : 'Desconectado';
+  badge.className = 'badge ' + (data.registered ? 'ok' : 'no');
+
+  // calls
+  const list = document.getElementById('callsList');
+  const calls = Object.entries(data.calls);
+  if (!calls.length) {
+    list.innerHTML = '<li style="color:#555;font-size:.85rem">Nenhuma chamada</li>';
+  } else {
+    list.innerHTML = calls.map(([sid, c]) => `
+      <li>
+        <div>
+          <div style="font-weight:600">${c.to}</div>
+          <div style="color:#555;font-size:.75rem">${sid.slice(0,8)}...</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="status-tag ${statusClass(c.status)}">${c.status}</span>
+          ${c.status !== 'ended' ? `<button class="end-btn" onclick="hangup('${sid}')">Desligar</button>` : ''}
+        </div>
+      </li>`).join('');
+  }
+
+  // logs
+  const logBox = document.getElementById('logBox');
+  logBox.innerHTML = data.logs.slice().reverse().map(l => `<p>${l}</p>`).join('');
+}
+
+setInterval(poll, 1500);
+poll();
+</script>
+</body>
+</html>
